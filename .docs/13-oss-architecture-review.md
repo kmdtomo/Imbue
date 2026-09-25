@@ -16,7 +16,7 @@
 - `Raw Event → Trajectory → Work Episode / Decision Point → Learning Case → Projection → Fine-tuning`を正本とする。
 - 承認待ちフロー、事例ごとのconfidence/strength score、モデル比較UXを設けない。
 - 内部CoTを取得せず、観測事実とActionIntent等のclaimを分ける。
-- Go製CLI/Collector＋Agent Learning Platform＋交換可能なCloud Providerとする。
+- Go製CLI/Collector＋Imbue Platform＋交換可能なCloud Providerとする。
 - Semantic Curatorは会話を継続しないステートレスRunとする。
 
 一方、精度と実装可能性のため、次の変更を推奨する。
@@ -44,7 +44,7 @@ Local Go Collector
        └─ Stateless Luna Curator Run
         │
         ▼
-Agent Learning Platform
+Imbue Platform
   ├─ Control Plane
   │    └─ Account / Project / Policy / Subscription
   ├─ Learning Data Plane
@@ -64,7 +64,7 @@ Agent Learning Platform
                 ▼
        Fireworks（初期実装）/ その他Provider（将来追加可能）
 
-Local `agent-learning run`
+Local `imbue run`
         │
         ▼
 Codex Runtime
@@ -72,12 +72,12 @@ Codex Runtime
   ├─ context / compaction
   ├─ tool protocol / execution loop
   ├─ sandbox
-  └─ Agent Learning Model Gateway ──► Current Model
+  └─ Imbue Model Gateway ──► Current Model
 ```
 
 ### Codex Runtimeとの互換性を先に定義する
 
-モデルの重みだけではcoding agentとして動作しない。ただし、Agent Learningが汎用Agent Runtimeを再実装する必要はない。Codexを標準Runtimeとし、次を`Codex Compatibility Profile`としてversion固定する。
+モデルの重みだけではcoding agentとして動作しない。ただし、Imbueが汎用Agent Runtimeを再実装する必要はない。Codexを標準Runtimeとし、次を`Codex Compatibility Profile`としてversion固定する。
 
 ```text
 compatibility_profile_version
@@ -92,7 +92,7 @@ model_gateway_profile
 required_capabilities
 ```
 
-`agent-learning run`は生成済みProfileでCodexを起動し、Agent LearningのResponses API互換Model Gatewayへ接続する。tool loop、context・compaction、sandbox、approval、MCP、Skill、subagentはCodexが担う。Agent LearningはProvider差分、tenant認証、Current Model alias、利用量をGatewayで吸収する。
+`imbue run`は生成済みProfileでCodexを起動し、ImbueのResponses API互換Model Gatewayへ接続する。tool loop、context・compaction、sandbox、approval、MCP、Skill、subagentはCodexが担う。ImbueはProvider差分、tenant認証、Current Model alias、利用量をGatewayで吸収する。
 
 学習側では、CodexやClaudeのTrajectoryを対象Modelの異なるchat templateやTool protocolへそのまま流さない。tokenizer、chat template、loss mask、Tool schema、exporter versionはModel/Profile側で別途固定し、Codex Runtimeとの入出力互換をProjection生成時に検証する。
 
@@ -184,11 +184,11 @@ type CuratorJobRunner interface {
 }
 ```
 
-Local Codex BrokerがユーザーのChatGPT管理認証を使い、Codex App Serverまたは`codex exec --ephemeral`でJobごとに新しいLuna Runを起動する。Agent Learning PlatformはEvidence Packet、schema、lease、attempt、結果だけを管理し、ChatGPT tokenやLunaの会話状態を保持しない。
+Local Codex BrokerがユーザーのChatGPT管理認証を使い、Codex App Serverまたは`codex exec --ephemeral`でJobごとに新しいLuna Runを起動する。Imbue PlatformはEvidence Packet、schema、lease、attempt、結果だけを管理し、ChatGPT tokenやLunaの会話状態を保持しない。
 
 Codexのnon-interactive modeはJSON Schema出力と、rollout fileを保存しない`--ephemeral`を提供する。[OpenAI Non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode) App ServerはChatGPT OAuth、device code、rate limit取得を提供する。[OpenAI Codex App Server](https://learn.chatgpt.com/docs/app-server)
 
-初期設定時にChatGPT管理認証、最低Codex version、非永続実行、構造化出力、Luna availability、rate limitを確認する。Local BrokerやLunaが利用不能な間はJobを`blocked_by_codex`として保留し、Raw Eventと直前のActive Caseを維持する。Agent Learning管理のAPI Runtimeへは自動fallbackしない。
+初期設定時にChatGPT管理認証、最低Codex version、非永続実行、構造化出力、Luna availability、rate limitを確認する。Local BrokerやLunaが利用不能な間はJobを`blocked_by_codex`として保留し、Raw Eventと直前のActive Caseを維持する。Imbue管理のAPI Runtimeへは自動fallbackしない。
 
 Curator Runは専用の空作業directoryで実行し、Evidence Packet以外をmountしない。MCP、Plugin、Skill、Memory、AGENTS.md、repo、network、外部Toolを無効化し、固定schema、token上限、timeoutを強制する。ユーザーの作業Taskへ会話を混在させず、別Caseや過去Jobの会話状態も継承しない。
 
@@ -247,7 +247,7 @@ type ServingProvider interface {
 
 初期AdapterはFireworks、Base ModelはQwen3.8-27B、学習はManaged TrainingのLoRA、実行はOn-demand Deploymentとする。Canonical DatasetとcontractはProvider非依存に保ち、他Providerは必要時に追加する。
 
-学習済みartifactは、Providerとlicenseがexportを許す場合、Agent Learning CloudのArtifact Vaultへ安全にsnapshotする。exportできない場合はProvider Native Refを正本として保持する。
+学習済みartifactは、Providerとlicenseがexportを許す場合、Imbue CloudのArtifact Vaultへ安全にsnapshotする。exportできない場合はProvider Native Refを正本として保持する。
 
 ```text
 artifact_type: lora | full_model | checkpoint
@@ -290,10 +290,10 @@ Local encrypted WAL
 `train`は非同期Job IDを即時返し、`--wait`時だけ追跡する。`status`にはspool件数、最古Event、最終ACK、gap、quarantine、Curator backlog、Dataset Version、Current Modelを表示する。
 
 ```bash
-agent-learning doctor
-agent-learning sync
-agent-learning auth whoami
-agent-learning jobs list|show|retry|cancel
+imbue doctor
+imbue sync
+imbue auth whoami
+imbue jobs list|show|retry|cancel
 ```
 
 共通optionは`--project`、`--profile`、`--json`、`--wait`とする。
@@ -329,12 +329,12 @@ agent-learning jobs list|show|retry|cancel
 - Provider固有ID、Dataset形式、GPU SKUをCanonical contractへ入れる。
 - [Episodic](https://github.com/StageWhisperIO/episodic)、[OpenPipe](https://github.com/OpenPipe/OpenPipe)、Langfuse等を製品中核としてそのまま組み込む。
 
-これらのOSSからは、hook収集、append-only episode、outcome連携、Dataset export、耐障害性、観測設計を参照し、Agent Learning固有のLearning Caseとprovenanceを維持する。
+これらのOSSからは、hook収集、append-only episode、outcome連携、Dataset export、耐障害性、観測設計を参照し、Imbue固有のLearning Caseとprovenanceを維持する。
 
 ## 採用前に検証する事項
 
 1. Codex App Server/CLIの最低version、ChatGPT管理認証、非永続実行、Luna availability、rate limit。
-2. Agent Learning Model GatewayのResponses API互換性と、対象オープンウェイトモデルのCodex Tool精度。
+2. Imbue Model GatewayのResponses API互換性と、対象オープンウェイトモデルのCodex Tool精度。
 3. FireworksとTogetherで同一Projectionを学習した際の対応model、artifact export、Tool精度。
 4. FireworksからArtifact Vaultへのartifact export可否、Base Model保持条件、再deploy。
 5. fresh-from-baseとwarm-start＋replayのDataset規模別の挙動。

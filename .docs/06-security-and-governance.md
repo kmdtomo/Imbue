@@ -13,7 +13,7 @@
 
 - データセットは観測対象リポジトリとは別の専用ディレクトリで管理する。
 - 対象リポジトリ内のコード、設定、Git履歴へ学習データを自動混入させない。
-- Agent Learning Platformを運用上の保存・処理基盤とし、暗号化、バックアップ、保持期間、project分離を管理する。
+- Imbue Platformを運用上の保存・処理基盤とし、暗号化、バックアップ、保持期間、project分離を管理する。
 - ローカルには設定、収集用buffer/cache、明示的にexportした可搬データだけを置く。
 - Base Model、checkpoint、LoRA、推論用weightをユーザーPCへ保存しない。
 - 独自形式だけに閉じず、Event、Learning Case、Evidence、履歴を可搬な形式で出力できるようにする。

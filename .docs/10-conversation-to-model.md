@@ -20,7 +20,7 @@ Training Projection Data
 1. ユーザー発言を受信したら、直前のAgent作業との関連候補を機械的に記録する。
 2. AgentのTool、ActionIntent、diff、testをRaw Eventへ追記する。
 3. Agentが制御を返したら、その時点で利用可能だったcontext、Decision Point、質問または実行、成果物、後続発言、Outcome EvidenceをWork Episodeへ接続する。
-4. Semantic Curatorがcorrection、preference refinement、requirement addition、exploration、approval、delegation、change of mind等の関係候補を付け、一つ以上のLearning Caseへ整形する。
+4. 同じ会話の未処理の完了Turnが既定10件たまった時、または手動要求時に、Codex内のLunaを起動する。Semantic Curatorがcorrection、preference refinement、requirement addition、exploration、approval、delegation、change of mind等の関係候補を付け、一つ以上のLearning Caseへまとめて整形する。Tool呼び出しや進捗説明はTurnに数えず、毎Turnの整形は行わない。
 5. Evidence条件を満たす用途だけへProjectionする。
 
 セッション終了は待たない。修正が続けば既存Caseを更新し、別の判断なら新しいCaseへ分ける。Sessionの終了、無反応、Agentのfinal messageを成功または承認とみなさない。

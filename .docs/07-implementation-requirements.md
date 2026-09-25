@@ -13,18 +13,20 @@
 
 ### 初期検証と完成形の境界
 
+初回の実装はログ収集までとし、ローカル起動、Evidence保存・確認、redaction、重複排除、再開、会話別の完了Turn検出・永続化を完了条件とする。Luna整形は次段階で実装し、同じ会話の未処理10 Turn（設定可能）または手動要求で起動する。毎Turn終了で整形しない。初回は10 Turnに達してもLunaを起動しない。詳細は[検証計画](15-validation-plan.md)と[Trigger](11-semantic-curator.md#trigger)に従う。
+
 本書のコンポーネント・CLI・受入条件は完成形を含む。初期検証は[仮説検証と段階的な実装](15-validation-plan.md)に従い、一人・一観測元・一判断領域・hybrid Direct SFTに絞る。Observe ModeのEvidence追跡、標本監査、データ分割、Context比較、学習・必須評価、Scope選択、訂正とrollbackを先に実装する。Managed Mode完全対応、全Projection、課金、複数Provider、チーム共有は後段とする。秘密情報・所有者分離・削除の要件は初期にも適用する。
 
 ## 2. 主要コンポーネント
 
 | Component | 責務 |
 |---|---|
-| Local CLI / Collector | Agent Learningへのlogin/init/status/train/runと、収集・送信・再送を担う |
+| Local CLI / Collector | Imbueへのlogin/init/status/train/runと、収集・送信・再送を担う |
 | Agent Adapter | LocalでCodex、Claude等の固有イベントを共通contractへ変換する |
 | Managed Tool Gate | LocalでActionGroup開始前のActionIntentを永続化してからツールを実行する |
 | Observer | LocalのObserve Modeでログ、hooks、PTY、filesystem、Git、CIをbest-effort収集する |
 | Codex Runtime | tool loop、context、sandbox、approval、MCP、Skill、subagentとCurrent Modelの実行を担う必須Runtime |
-| Local Codex Broker | Codex capabilityを確認し、Curator Runと`agent-learning run`をユーザーPC上で起動する |
+| Local Codex Broker | Codex capabilityを確認し、Curator Runと`imbue run`をユーザーPC上で起動する |
 | Event Ingestor | Platformでschema検証、重複排除、sequence付与、秘密情報マスク、Ledger追記を行う |
 | Artifact Store | diff、snapshot、画像、テスト出力等をcontent-addressed blobとして保存する |
 | Trajectory / Episode Assembler | 複数イベントをSession、Task、Work Episode、ActionGroupへ正規化する。Session終了を仕事の成功とみなさない |
@@ -302,7 +304,7 @@ Training Projectionは、元Evidenceへの参照、含めたコードcontext、�
 ## 10. 保存レイアウト
 
 ```text
-Local: $AGENT_LEARNING_HOME/           # default: ~/.agent-learning
+Local: $IMBUE_HOME/           # default: ~/.imbue
   config/
   auth/
   spool/
@@ -345,7 +347,7 @@ LocalのSQLiteは送信cursor、retry、cache用であり、Canonical Datasetの
 - blob保存失敗時は対応イベントをcommitしない。
 - schema不一致・未知eventはquarantineし、他イベント処理を継続する。
 - extraction失敗時もLedgerとTrajectoryを保持し、指数backoffで再試行する。
-- Codex、ChatGPT管理認証、Luna、必要な非永続実行機能のいずれかが利用できない場合、Curator Jobを`blocked_by_codex`として保留する。Agent Learning管理のAPI Runtimeへ自動fallbackしない。
+- Codex、ChatGPT管理認証、Luna、必要な非永続実行機能のいずれかが利用できない場合、Curator Jobを`blocked_by_codex`として保留する。Imbue管理のAPI Runtimeへ自動fallbackしない。
 - 新しいCase抽出が失敗しても直前のactive Caseを壊さない。
 - projection生成・検証失敗時は直前のactive projectionを維持する。
 - 任意のContext Injector障害時はメモリなしでAgentを継続し、dataset生成・trainingを停止しない。
@@ -366,7 +368,7 @@ LocalのSQLiteは送信cursor、retry、cache用であり、Canonical Datasetの
 - `eval run <suite>`
 - `train [--budget <limit>]`: Active Datasetを固定し、Qwen3.8-27Bの学習を開始する
 - `training status` / `model rollback <version>`
-- `run`: Agent Learning ProfileでCodexを起動し、Model Gateway経由でCurrent ModelのCloud Deploymentを利用する
+- `run`: Imbue ProfileでCodexを起動し、Model Gateway経由でCurrent ModelのCloud Deploymentを利用する
 
 編集コマンドは承認フローを開始せず、直ちに新versionを作り、影響するprojectionを再計算する。
 
@@ -396,8 +398,8 @@ LocalのSQLiteは送信cursor、retry、cache用であり、Canonical Datasetの
 22. 初期Base ModelはQwen3.8-27B、学習方式はLoRA、配備先はFireworks On-demand Deploymentとなる。
 23. `run`はDeploymentの作成・起動とLoRA読込を保証し、Scale-to-zeroからの起動中応答を再試行する。
 24. 認証された所有者と異なるLoRAをModel Gateway経由で利用できない。
-25. `agent-learning run`が独自Agent HarnessではなくCodexを起動し、Responses API互換Model Gateway経由でCurrent Modelを利用する。
-26. Codexがtool loop、context・compaction、sandbox、approval、MCP、Skill、subagentを担い、Agent Learning側に同等の汎用Runtimeを重複実装しない。
+25. `imbue run`が独自Agent HarnessではなくCodexを起動し、Responses API互換Model Gateway経由でCurrent Modelを利用する。
+26. Codexがtool loop、context・compaction、sandbox、approval、MCP、Skill、subagentを担い、Imbue側に同等の汎用Runtimeを重複実装しない。
 27. Curator Jobごとに新しいCodex/Luna Runが作られ、別Caseまたは過去Jobの会話状態を継承しない。
 28. CuratorのChatGPT credentialがPlatformへ送信されず、ユーザーの作業TaskにもCurator会話が混在しない。
 29. Codex/Lunaが利用不能な間もRaw Eventと直前のActive Caseを維持し、復旧後に保留Jobを再開できる。

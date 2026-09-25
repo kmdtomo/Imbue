@@ -95,7 +95,7 @@ event ingestion
   -> model registry / current model更新
 ```
 
-新規イベントの取り込みとLearning Case生成はイベント駆動で継続する。ファインチューニングは`agent-learning train`の明示実行時だけ独立ジョブとして開始し、`init`やデータ蓄積を自動実行条件にしない。
+新規イベントの取り込みとLearning Case生成はイベント駆動で継続する。ファインチューニングは`imbue train`の明示実行時だけ独立ジョブとして開始し、`init`やデータ蓄積を自動実行条件にしない。
 
 学習runはactive dataset全体を入力とする。samplingやcurriculumを使う場合も、古い有効事例を暗黙に除外せず、snapshotと設定から再現できるようにする。
 
@@ -103,9 +103,9 @@ event ingestion
 
 初期Base ModelはQwen3.8-27Bとし、Fireworks Managed TrainingでLoRA学習する。Canonical Dataset、Projection、Training RunはFireworks固有形式へ固定しない。Base Model、checkpoint、LoRA、推論用weightはクラウドで保持し、ユーザーPCへダウンロードしない。
 
-`agent-learning train`はActive Datasetを固定し、用途、互換性、予算上限からprojection、hyperparameter、学習構成を決定する。`--budget`だけを上級者向けoverrideとして公開し、Provider固有設定は内部contractへ閉じる。
+`imbue train`はActive Datasetを固定し、用途、互換性、予算上限からprojection、hyperparameter、学習構成を決定する。`--budget`だけを上級者向けoverrideとして公開し、Provider固有設定は内部contractへ閉じる。
 
-学習完了後のartifactはPlatformのModel Registryから参照する。`agent-learning run`はCurrent Model用のFireworks On-demand Deploymentを作成または起動し、Codexを接続する。DeploymentはScale-to-zeroを標準とし、起動中の`DEPLOYMENT_SCALING_UP`はModel Gatewayが待機・再試行する。初期は利用者がFireworks接続を設定し、ローカルPlatformで予算と利用量を管理する。サービス認証とsubscriptionは後段とする。
+学習完了後のartifactはPlatformのModel Registryから参照する。`imbue run`はCurrent Model用のFireworks On-demand Deploymentを作成または起動し、Codexを接続する。DeploymentはScale-to-zeroを標準とし、起動中の`DEPLOYMENT_SCALING_UP`はModel Gatewayが待機・再試行する。初期は利用者がFireworks接続を設定し、ローカルPlatformで予算と利用量を管理する。サービス認証とsubscriptionは後段とする。
 
 ## VersionとRollback
 

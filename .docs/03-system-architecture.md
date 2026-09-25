@@ -17,7 +17,7 @@
 - 正規データは特定のSFT・DPO形式に固定せず、用途別形式はprojectionとして生成する。
 - 生の観測とartifact、判断の抽象化、学習用projectionを三層に分ける。コードは第一層の証拠として保持し、抽象化だけで置換しない。
 - 全ツール呼び出しを同じ粒度で並べず、同一目的の探索・編集・検証を`ActionGroup`へまとめる。
-- Agent実行はCodexへ集約する。Agent Learningは独自Agent Runtimeを実装せず、収集、Dataset、学習、Model Gatewayに責務を限定する。
+- Agent実行はCodexへ集約する。Imbueは独自Agent Runtimeを実装せず、収集、Dataset、学習、Model Gatewayに責務を限定する。
 
 ## 2. 全体構成
 
@@ -29,7 +29,7 @@ Local Go CLI / Collector
   └─ Agent Adapter ── Managed Mode: tool gate + ActionIntent強制
                      Observe Mode: ログ・hook・Git等をbest-effort観測
         ▼
-Agent Learning Platform
+Imbue Platform
   ├─ Local Owner / Project（Account・Subscriptionは後段）
   ├─ Evidence Data（Raw Event Ledger / artifact / diff / test）
         ▼
@@ -50,14 +50,14 @@ Agent Learning Platform
        └─ その他Provider（将来追加可能）
 ```
 
-Agent Learning Platformがプロダクト境界であり、外部Providerはユーザーから見えない交換可能な実行基盤とする。初期はサービスアカウントを設けず、ローカル所有者とProjectで管理する。利用者がFireworks接続用credentialを設定する。
+Imbue Platformがプロダクト境界であり、外部Providerはユーザーから見えない交換可能な実行基盤とする。初期はサービスアカウントを設けず、ローカル所有者とProjectで管理する。利用者がFireworks接続用credentialを設定する。
 
 Agent実行系はデータ生成系と分け、次の構成を標準とする。
 
 ```text
 Semantic Curator Job ──► Local Codex / GPT-5.6 Luna ──► Learning Case Patch
 
-agent-learning run ──► Codex ──Responses API──► Agent Learning Model Gateway
+imbue run ──► Codex ──Responses API──► Imbue Model Gateway
                                                    └──► Current Model Deployment
 ```
 
@@ -65,7 +65,7 @@ Codexがtool loop、context・compaction、sandbox、approval、MCP、Skill、su
 
 Learning Case Extractorは、決定的なCandidate Builder、ステートレスなSemantic Curator、Evidence Validatorで構成する。経験学習の意味モデルは[Experience Learning Model](14-experience-learning-model.md)、具体的な会話からの生成例は[会話からモデル学習まで](10-conversation-to-model.md)、Curator実行は[Semantic Curator（Luna）](11-semantic-curator.md)を参照する。
 
-中核成果物は、Evidence Data、Abstract Experience Data、Training Projection Dataの三層と、それを使った個人適応の比較実験である。チューニングモデルは検証結果であり、個人差の定着と汎化を事前に仮定しない。Context・Memory・Skillは任意projectionかつ比較対象とする。一修正ごとの重み更新は行わず、`agent-learning train`で版固定したActive Dataset全体を学習する。初期構成はQwen3.8-27BをFireworks Managed TrainingでLoRA学習し、Fireworks On-demand Deploymentで実行する。
+中核成果物は、Evidence Data、Abstract Experience Data、Training Projection Dataの三層と、それを使った個人適応の比較実験である。チューニングモデルは検証結果であり、個人差の定着と汎化を事前に仮定しない。Context・Memory・Skillは任意projectionかつ比較対象とする。一修正ごとの重み更新は行わず、`imbue train`で版固定したActive Dataset全体を学習する。初期構成はQwen3.8-27BをFireworks Managed TrainingでLoRA学習し、Fireworks On-demand Deploymentで実行する。
 
 ## 3. 実行モード
 
@@ -178,10 +178,10 @@ Adapterの能力は`capabilities`として宣言し、取得不能項目を空�
 
 ## 8. 保存境界
 
-プロダクトはAgentの設定ディレクトリや対象リポジトリへ実行データを混在させない。ローカルの`AGENT_LEARNING_HOME`（既定`~/.agent-learning/`）には設定、収集buffer、cache、明示的なexportに加えて、初期Platformの正本データを置く。
+プロダクトはAgentの設定ディレクトリや対象リポジトリへ実行データを混在させない。ローカルの`IMBUE_HOME`（既定`~/.imbue/`）には設定、収集buffer、cache、明示的なexportに加えて、初期Platformの正本データを置く。
 
 ```text
-~/.agent-learning/
+~/.imbue/
   config/
   auth/
   spool/
@@ -190,7 +190,7 @@ Adapterの能力は`capabilities`として宣言し、取得不能項目を空�
   data/projects/  # 初期Platformの正本
 ```
 
-Canonical Ledger、Dataset、Job、Model RegistryはPlatform上でProjectごとに分離する。可搬なdatasetや設定だけを明示的に`exports/`またはリポジトリ内`.agent-learning/`へ出力できる。ローカル原ログや秘密情報は既定でexportせず、モデルweightはローカルへ保存しない。
+Canonical Ledger、Dataset、Job、Model RegistryはPlatform上でProjectごとに分離する。可搬なdatasetや設定だけを明示的に`exports/`またはリポジトリ内`.imbue/`へ出力できる。ローカル原ログや秘密情報は既定でexportせず、モデルweightはローカルへ保存しない。
 
 ## 9. 信頼・安全境界
 

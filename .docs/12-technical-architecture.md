@@ -2,21 +2,21 @@
 
 ## プロダクト形態
 
-Agent Learningは、CLI/CollectorとPlatformを同じPCで動かす、一人用のローカルアプリとして実装を始める。Dataset・Job・Model Registryの正本はPC上に置き、AI実行・学習・モデルweightの保持は外部サービスを利用する。クラウドサービス化は後段とする。Agent実行はCodexへ集約し、Agent Learningは独自のtool loop、context管理、sandbox、subagent機構を実装しない。Web UIは必須とせず、通常操作はCLIで完結する。
+Imbueは、CLI/CollectorとPlatformを同じPCで動かす、一人用のローカルアプリとして実装を始める。Dataset・Job・Model Registryの正本はPC上に置き、AI実行・学習・モデルweightの保持は外部サービスを利用する。クラウドサービス化は後段とする。Agent実行はCodexへ集約し、Imbueは独自のtool loop、context管理、sandbox、subagent機構を実装しない。Web UIは必須とせず、通常操作はCLIで完結する。
 
 ```text
-収集: Codex / Claude Code ──► agent-learningd ──► Agent Learning Platform
+収集: Codex / Claude Code ──► imbued ──► Imbue Platform
 
-整形: Agent Learning Platform ──Curator Job──► agent-learningd
+整形: Imbue Platform ──Curator Job──► imbued
                                                 └──► Codex / Luna
                                                        └──► PatchをPlatformへ返却
 
-実行: agent-learning run ──► Codex ──Responses API──► Model Gateway
+実行: imbue run ──► Codex ──Responses API──► Model Gateway
                                                             └──► Fireworks On-demand / Current Model
 ```
 
 - リポジトリへ実行データやモデルを自動追加しない。
-- Codexを`agent-learning run`とSemantic Curatorの標準かつ必須Runtimeとする。
+- Codexを`imbue run`とSemantic Curatorの標準かつ必須Runtimeとする。
 - ローカルはAgentイベントの収集、redaction、buffer、CLI操作、Codexの起動を担う。
 - Platformはアカウント、プロジェクト、Dataset、Curator Job、学習、モデル、利用枠を管理する。
 - 初期は利用者がFireworksのアカウントとAPI keyを用意する。Provider固有の設定は接続設定へ閉じ、Dataset contractへ露出させない。サービス側でcredentialを管理する形はクラウド化時に検討する。
@@ -54,7 +54,7 @@ Codex / Claude Code / その他Agent
 Provider Adapter / Hook
         │
         ▼
-agent-learningd（Go）
+imbued（Go）
   ├─ Event Collector
   ├─ Local Redactor
   ├─ Upload Queue / Retry
@@ -64,7 +64,7 @@ agent-learningd（Go）
         └─ Current Model Run
         │ loopback HTTP / local IPC
         ▼
-Agent Learning Platform
+Imbue Platform
   ├─ Local Owner / Project
   ├─ Evidence Data / Event Ingestor / Ledger / Artifact
   ├─ Abstract Experience Data / Trajectory / Episode / Decision Point
@@ -97,16 +97,16 @@ Collectorは収集失敗時にもAgent作業を止めず、再送可能なbuffer
 - Datasetの確認・編集・export操作
 - Platformへの認証済みcommand送信
 - PlatformのCurator Jobを取得し、ユーザーのChatGPT管理認証下でCodex/Lunaを起動する
-- `agent-learning run`用のCodex Profileを生成し、Codexを起動する
+- `imbue run`用のCodex Profileを生成し、Codexを起動する
 
 ### Codex Runtime
 
 - tool loop、shell・filesystem操作、context・compaction、sandbox、approval、MCP、Skill、subagentを実行する
 - Semantic Curatorをユーザーの作業Taskとは別の非対話・非永続Runとして実行する
-- Current Model利用時はAgent Learning Model Gatewayをcustom model providerとして呼び出す
-- ChatGPTのaccess/refresh tokenをAgent Learning Platformへ渡さない
+- Current Model利用時はImbue Model Gatewayをcustom model providerとして呼び出す
+- ChatGPTのaccess/refresh tokenをImbue Platformへ渡さない
 
-### Agent Learning Platform
+### Imbue Platform
 
 - Local Owner、Project、利用量、予算上限。Account・subscriptionはクラウド化時に追加
 - Evidence Data、Abstract Experience Data、Training Projection Dataの保存と版管理
@@ -127,23 +127,23 @@ Collectorは収集失敗時にもAgent作業を止めず、再送可能なbuffer
 
 ## Codex Runtime境界
 
-`agent-learning run`はAgent Learning独自のAgent Harnessを起動せず、生成済みProfileでCodexを起動する。CodexはAgent Learning Model Gatewayをcustom model providerとして利用する。
+`imbue run`はImbue独自のAgent Harnessを起動せず、生成済みProfileでCodexを起動する。CodexはImbue Model Gatewayをcustom model providerとして利用する。
 
 ```toml
 model = "current"
-model_provider = "agent-learning"
+model_provider = "imbue"
 
-[model_providers.agent-learning]
+[model_providers.imbue]
 base_url = "http://127.0.0.1:8787/codex/v1"
-env_key = "AGENT_LEARNING_TOKEN"
+env_key = "IMBUE_TOKEN"
 wire_api = "responses"
 ```
 
-Agent Learning Model GatewayはCodexが要求するResponses API contractを提供し、Current ModelのDeploymentへ変換する。Fireworks等が同contractを直接提供できても、認証、tenant分離、利用量、model aliasを統一するためGatewayを製品境界とする。
+Imbue Model GatewayはCodexが要求するResponses API contractを提供し、Current ModelのDeploymentへ変換する。Fireworks等が同contractを直接提供できても、認証、tenant分離、利用量、model aliasを統一するためGatewayを製品境界とする。
 
-Agent Learningが保持するのは`Codex Compatibility Profile`であり、独自Runtimeではない。最低限、Codex version、model/provider設定、instruction version、tool capability、context/compaction policy、Responses API互換versionを固定する。学習側のtokenizer、chat template、loss maskはModel/Profile側で別にversion固定する。
+Imbueが保持するのは`Codex Compatibility Profile`であり、独自Runtimeではない。最低限、Codex version、model/provider設定、instruction version、tool capability、context/compaction policy、Responses API互換versionを固定する。学習側のtokenizer、chat template、loss maskはModel/Profile側で別にversion固定する。
 
-生成Profileとcredential参照は`~/.agent-learning/`またはCodexのユーザー設定へ置き、対象repositoryへ自動追加しない。CollectorやManaged Tool Gateは観測・記録のIntegrationであり、Agentの実行ループを持たない。
+生成Profileとcredential参照は`~/.imbue/`またはCodexのユーザー設定へ置き、対象repositoryへ自動追加しない。CollectorやManaged Tool Gateは観測・記録のIntegrationであり、Agentの実行ループを持たない。
 
 ## Provider Contract
 
@@ -169,8 +169,8 @@ type InferenceProvider interface {
 
 ```text
 cmd/
-  agent-learning/       # CLI
-  agent-learningd/      # Local Collector
+  imbue/       # CLI
+  imbued/      # Local Collector
 
 internal/
   adapter/              # Codex、Claude、Generic
@@ -204,7 +204,7 @@ Agent固有処理はlocal `adapter`、学習基盤固有処理はPlatformの`pro
 ## 保存構成
 
 ```text
-~/.agent-learning/
+~/.imbue/
   config/config.toml
   auth/credential-ref
   state/collector.db
@@ -227,31 +227,31 @@ Agent固有処理はlocal `adapter`、学習基盤固有処理はPlatformの`pro
 初期の通常操作は次の3コマンドを中心にする。
 
 ```bash
-agent-learning init
-agent-learning train
-agent-learning run
+imbue init
+imbue train
+imbue run
 ```
 
 初期はサービスへの`login`を必要としない。`init`でローカル所有者・Project・保存先・接続設定を作成し、DBとローカルAPIの利用可否を確認する。FireworksのAPI keyはOS credential storeに保存し、設定には参照だけを置く。未設定でも収集・Case管理を使えるようにし、学習・推論時に不足を表示する。これとは別に、Semantic CuratorにはChatGPT管理認証済みのCodexを必須とし、そのcredentialはローカルのCodexだけが保持する。
 
 ```bash
-agent-learning status
-agent-learning case list
-agent-learning case show <id>
-agent-learning case edit <id>
-agent-learning dataset diff <a> <b>
-agent-learning dataset export --format jsonl
-agent-learning training status
-agent-learning model list
-agent-learning model rollback <version>
+imbue status
+imbue case list
+imbue case show <id>
+imbue case edit <id>
+imbue dataset diff <a> <b>
+imbue dataset export --format jsonl
+imbue training status
+imbue model list
+imbue model rollback <version>
 ```
 
-`agent-learning run`はCodexを生成Profileで起動し、Current ModelをModel Gateway経由で利用する。独自TUIやAgent loopは起動しない。
+`imbue run`はCodexを生成Profileで起動し、Current ModelをModel Gateway経由で利用する。独自TUIやAgent loopは起動しない。
 
 初期Base ModelはQwen3.8-27Bに固定し、Platformがその他の学習設定を決定する。必要な場合だけ次を上級オプションとして提供する。
 
 ```bash
-agent-learning train --budget <limit>
+imbue train --budget <limit>
 ```
 
 ## 配布と安全境界
@@ -260,14 +260,17 @@ agent-learning train --budget <limit>
 - Daemonはユーザー権限で動かし、Local Socketを同一ユーザーだけに許可する。
 - LocalとPlatformの双方でsecret検出とredactionを行う。
 - CuratorはChatGPT管理認証下のCodexで、固定schema、限定Evidence、無効化した外部Toolによるステートレス実行とする。
-- Codex/Lunaが利用できない場合はCurator Jobを保留し、Agent Learning管理のAPI実行へ自動fallbackしない。
+- Codex/Lunaが利用できない場合はCurator Jobを保留し、Imbue管理のAPI実行へ自動fallbackしない。
 - Providerへはredaction済みの固定Dataset Versionだけを渡す。
 - Provider credentialはローカルOS credential storeで管理し、log、Dataset、repositoryへ記録しない。
 - 初期はProvider利用量と予算を記録する。subscriptionと無料枠の製品化は後段とする。
 
 ## ローカル起動・永続化の実装方針
 
-- 初期は`agent-learningd`内にCollector、API、Worker、Curator Broker、Gatewayを同居させる。packageの責務境界は維持し、別サーバーの配備を必須にしない。
+- Dockerで動かすのはPostgreSQLだけとする。GoのCLI・Daemon・API・Worker・Curator Broker・GatewayはMac上で直接実行する。初回はログ収集までを実装し、Luna整形・学習・Gateway実行は後続段階で追加する。
+- 整形はChatGPT管理認証済みのCodex内でGPT-5.6 Lunaを非対話・非永続Runとして起動する。ImbueからOpenAI APIを直接呼び出す構成にはしない。既定は同じ会話の未処理10 Turnで起動し、詳細は[Semantic Curator](11-semantic-curator.md)に従う。
+
+- 初期は`imbued`内にCollector、API、Worker、Curator Broker、Gatewayを同居させる。packageの責務境界は維持し、別サーバーの配備を必須にしない。
 - PostgreSQLはDocker Composeで起動し、DB接続設定はTOMLにcredential参照として保持する。通常停止で永続volumeを削除しない。
 - APIとGatewayは`127.0.0.1`にのみbindし、ローカル生成tokenを要求する。CLI・Codexへ安全に渡し、外部認証サービスは導入しない。Local IPCは同一OSユーザーに制限する。
 - ジョブテーブルはlease、attempt、next_run_at、冪等キー、状態を持ち、Workerがtransaction内で取得する。異常終了後はlease失効で再開できるようにし、外部学習の重複開始はProviderの実行参照と照合する。

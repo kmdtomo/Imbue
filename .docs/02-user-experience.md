@@ -11,12 +11,12 @@
 初期はローカルPostgreSQLとDaemonを起動し、次の操作でProjectを初期化する。サービスへのloginは不要とする。
 
 ```bash
-agent-learning init
+imbue init
 ```
 
 初期はローカル所有者とプロジェクトを使い、観測対象、リポジトリ、保持期間、除外対象、外部送信可否を設定する。Fireworksを利用する際は利用者がAPI keyを設定し、OS credential storeに保存する。未設定でも収集・Case管理は利用できる。クラウドの認証・チーム共有・課金は後段とする。
 
-セットアップでは、ChatGPT管理認証済みのCodex、非永続な非対話実行、構造化出力、GPT-5.6 Lunaの利用可否を自動確認する。これはSemantic Curatorの必須条件であり、ChatGPT credentialはAgent Learningへ渡さない。条件を満たさない場合は、API key入力へ誘導せず不足項目を表示する。
+セットアップでは、ChatGPT管理認証済みのCodex、非永続な非対話実行、構造化出力、GPT-5.6 Lunaの利用可否を自動確認する。これはSemantic Curatorの必須条件であり、ChatGPT credentialはImbueへ渡さない。条件を満たさない場合は、API key入力へ誘導せず不足項目を表示する。
 
 学習データは対象リポジトリとは別のユーザー管理領域へ保存する。リポジトリへの設定追加、Git追跡、チーム共有は明示的に有効化した場合だけ行う。
 
@@ -125,13 +125,13 @@ Learning Caseと元Evidenceを、目的に応じたTraining Projectionへ変換�
 
 ## 9. 学習
 
-学習は`agent-learning train`の明示実行時だけ開始し、Active Dataset全体のSnapshotからクラウドで行う。初期Base ModelはQwen3.8-27B、実行基盤はFireworks Managed Training、学習方式はLoRAとする。Event収集とLearning Case生成は継続するが、`init`やデータ蓄積だけでは有料Training Jobを開始しない。`--budget`を上級オプションとして提供する。
+学習は`imbue train`の明示実行時だけ開始し、Active Dataset全体のSnapshotからクラウドで行う。初期Base ModelはQwen3.8-27B、実行基盤はFireworks Managed Training、学習方式はLoRAとする。Event収集とLearning Case生成は継続するが、`init`やデータ蓄積だけでは有料Training Jobを開始しない。`--budget`を上級オプションとして提供する。
 
 学習ジョブが完了したモデルはCandidate Modelとする。同一基盤モデルの未学習版、Skill・Context利用版、Current Modelと、未学習Taskで個人適応、機能的正しさ、一般能力の回帰を比較する。互換性・安全性の必須条件を満たさない、または主要能力が許容範囲を超えて低下したCandidateはCurrent Modelへ切り替えない。異なるOutcome軸を一つの品質スコアへ圧縮せず、Dataset Version、条件別の結果、成立・不成立理由を示す。
 
 ## 10. 実利用
 
-`agent-learning run`はCurrent ModelをFireworks On-demand Deploymentへ配置または起動し、生成済みProfileでCodexを開始する。DeploymentはScale-to-zeroを標準とし、起動中の応答はModel Gatewayが待機・再試行する。ユーザーは普段のCodex操作のままCurrent Modelを利用し、その後の修正、テスト、Revertを次のデータセット更新へつなげる。
+`imbue run`はCurrent ModelをFireworks On-demand Deploymentへ配置または起動し、生成済みProfileでCodexを開始する。DeploymentはScale-to-zeroを標準とし、起動中の応答はModel Gatewayが待機・再試行する。ユーザーは普段のCodex操作のままCurrent Modelを利用し、その後の修正、テスト、Revertを次のデータセット更新へつなげる。
 
 Scopeが不明・競合・対象外の場合は個人化Adapterを使わず、未適応の基盤モデルを利用する。使用Scope、Adapter、選択理由を履歴に残す。評価未完了・件数不足のCandidateは判定不能として扱い、Current Modelへ切り替えない。
 

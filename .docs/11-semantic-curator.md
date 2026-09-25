@@ -7,7 +7,7 @@
 
 ## 役割
 
-機械的に集約したEvidence Packetを、GPT-5.6 LunaでLearning Caseへ整形する。Curator JobはAgent Learning Platformが管理するが、モデル実行はユーザーPC上のCodexを通して行う。Agent Learning独自のLLM RuntimeやAPI実行へ置き換えず、現在のユーザーTaskにも表示しない。
+機械的に集約したEvidence Packetを、GPT-5.6 LunaでLearning Caseへ整形する。Curator JobはImbue Platformが管理するが、モデル実行はユーザーPC上のCodexを通して行う。Imbue独自のLLM RuntimeやAPI実行へ置き換えず、現在のユーザーTaskにも表示しない。
 
 Lunaが行うのは次の意味処理に限定する。
 
@@ -23,11 +23,11 @@ Lunaは、Session終了、無反応、短いTrajectory、最終artifactを成功
 ## 実行構成
 
 ```text
-Agent Learning Platform
+Imbue Platform
   └── Candidate Builder / Curator Job Queue
         │ Evidence Packet
         ▼
-Local agent-learningd / Curator Broker
+Local imbued / Curator Broker
   └── Curator Root（論理的な親IDと設定）
         └── Codex（ChatGPT管理認証）
               ├── Luna Run 001 ──終了・破棄
@@ -40,7 +40,7 @@ Local agent-learningd / Curator Broker
 - LunaはJobごとに新しい非対話Codex Runとして起動し、結果取得後に破棄する。
 - 継続状態はLunaの履歴ではなく、Case、Event Ledger、Datasetに保存する。
 - Lunaの推論はOpenAI側で行い、モデルweightをユーザーPCへ保存しない。
-- CodexのChatGPT access/refresh tokenをAgent Learning Platformへ送信しない。
+- CodexのChatGPT access/refresh tokenをImbue Platformへ送信しない。
 
 サブエージェントは活動がメインスレッドへ返り、ユーザー画面にも現れるため利用しない。通常の別セッションも履歴を蓄積するため利用しない。
 
@@ -53,12 +53,22 @@ UserMessageReceived
 
 AgentTurnCompleted
   -> diffとverificationを追加
-  -> Curator Jobをenqueue
+  -> 同じ会話の未処理・未予約の完了Turnを数える
+  -> 10 Turn以上なら対象範囲を固定してCurator Jobをenqueue
   -> Local Curator BrokerがJobを取得
   -> Codex上のLunaでLearning Caseを新規作成・更新
 ```
 
-セッション終了や明示的な完了宣言は待たない。ユーザーの発言とAgent Turn完了を契機に繰り返し動作する。Session終了は観測上の休止としてのみ扱い、Learning Caseを正例化しない。遅れてEventが届いた場合はTrajectory revisionを追加し、影響するCaseだけを再整形する。
+既定の起動条件は同じ会話で未処理の完了Turnが10件蓄積することとし、閾値は設定で変更できる。8,000文字やコード差分量は起動条件にしない。
+
+- 1 Turnはユーザー入力に対しAgentが回答・作業を終え、制御を返すまでとする。Tool呼び出し、進捗説明、サブエージェントの応答は独立したTurnに数えない。境界を取得できない場合は推測で補わず欠損として記録する。
+- 完了イベントの再送を重複計上せず、会話ごとに完了Turn、処理済み位置、Jobが予約した範囲を永続化する。異なる会話のTurn数を合算しない。
+- 10件未満は保存して持ち越す。セッション終了・無操作だけでは自動起動せず、手動の整形要求では閾値未満の完了Turnも対象にできる。Session終了を成功や承認とはみなさない。
+- 同じ会話のJobは直列化する。処理中の新規Turnは次のバッチへ回す。成功結果の検証・保存後にのみ処理済み位置を進め、失敗・利用枠不足時は同じ範囲を保持して再試行する。
+- 10 Turnは起動の目安でありWork Episodeの区切りではない。直前の関連文脈、既存Case、対応するコード・diff・検証結果をEvidence Packetへ含める。入力上限を超える場合は関係を保持して分割し、会話やEvidenceを黙って切り捨てない。
+- 遅延EventはTrajectory revisionへ記録し、影響するCaseを再整形対象として次回バッチまたは手動整形に含める。新しい完了Turnとして数えず、遅延Eventだけで即時Luna起動はしない。
+
+初回実装はTurn検出・永続化・件数確認までとし、Curator Jobの実行とLunaによる整形は次段階で実装する。
 
 ## Lunaへの入力
 
@@ -128,7 +138,7 @@ AgentTurnCompleted
 
 ## Codex実行契約
 
-Semantic Curatorの標準かつ必須RuntimeはCodexとする。Agent Learningは独自Agent Runtimeを実装せず、Codex App Serverまたは対応するCodex CLIの非対話・非永続RunをLocal Curator Brokerから起動する。
+Semantic Curatorの標準かつ必須RuntimeはCodexとする。Imbueは独自Agent Runtimeを実装せず、Codex App Serverまたは対応するCodex CLIの非対話・非永続RunをLocal Curator Brokerから起動する。
 
 ```bash
 codex exec --ephemeral \
@@ -145,7 +155,7 @@ codex exec --ephemeral \
 - 専用の空作業directoryで起動し、Evidence Packet以外を渡さない。
 - MCP、Plugin、Skill、Memory、AGENTS.md、repository、network、外部Toolを無効化する。
 - 固定schema、token上限、timeout、再試行上限を強制する。
-- Agent Learningが費用負担するOpenAI APIやManaged Curatorへ自動fallbackしない。
+- Imbueが費用負担するOpenAI APIやManaged Curatorへ自動fallbackしない。
 - CodexまたはLunaが利用できない間はJobを`blocked_by_codex`として保留し、Raw Eventと直前のActive Caseを維持する。
 
-実行状況はCodexの会話履歴ではなくPlatformのJob状態として管理する。ユーザーのCodex/ChatGPT利用枠とAgent LearningのTraining Provider利用量は別に記録する。
+実行状況はCodexの会話履歴ではなくPlatformのJob状態として管理する。ユーザーのCodex/ChatGPT利用枠とImbueのTraining Provider利用量は別に記録する。
